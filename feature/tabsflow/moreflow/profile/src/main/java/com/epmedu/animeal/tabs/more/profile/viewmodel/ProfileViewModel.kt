@@ -5,11 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.epmedu.animeal.common.presentation.viewmodel.delegate.ActionDelegate
 import com.epmedu.animeal.common.presentation.viewmodel.delegate.DefaultStateDelegate
 import com.epmedu.animeal.common.presentation.viewmodel.delegate.StateDelegate
+import com.epmedu.animeal.foundation.common.UiText
 import com.epmedu.animeal.networkuser.domain.usecase.UpdateNetworkProfileUseCase
 import com.epmedu.animeal.profile.data.model.Profile
 import com.epmedu.animeal.profile.domain.GetProfileUseCase
 import com.epmedu.animeal.profile.domain.SaveProfileUseCase
-import com.epmedu.animeal.profile.presentation.viewmodel.ProfileInputFormState
 import com.epmedu.animeal.profile.presentation.viewmodel.ProfileInputFormState.FormState.EDITABLE
 import com.epmedu.animeal.profile.presentation.viewmodel.ProfileInputFormState.FormState.EDITED
 import com.epmedu.animeal.profile.presentation.viewmodel.ProfileInputFormState.FormState.READ_ONLY
@@ -82,12 +82,23 @@ internal class ProfileViewModel @Inject constructor(
             is InputFormEvent -> {
                 profileInputFormHandler.handleInputFormEvent(event.event)
             }
+
             is Edit -> {
                 profileInputFormHandler.updateState { copy(formState = EDITABLE) }
             }
+
             is Discard -> {
-                profileInputFormHandler.updateState { ProfileInputFormState(profile = lastSavedProfile) }
+                profileInputFormHandler.updateState {
+                    copy(
+                        profile = lastSavedProfile,
+                        formState = READ_ONLY,
+                        nameError = UiText.Empty,
+                        surnameError = UiText.Empty,
+                        emailError = UiText.Empty,
+                    )
+                }
             }
+
             is Save -> {
                 if (profileInputFormHandler.state.hasErrors().not()) saveChanges()
             }
