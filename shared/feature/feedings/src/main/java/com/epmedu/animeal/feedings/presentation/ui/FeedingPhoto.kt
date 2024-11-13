@@ -32,8 +32,9 @@ internal fun FeedingPhoto(
                 .diskCacheKey(photo.name)
                 .crossfade(true)
                 .build(),
-            contentScale = ContentScale.Fit,
             contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit,
             onState = { state ->
                 isPhotoLoading = state is Loading
             }
