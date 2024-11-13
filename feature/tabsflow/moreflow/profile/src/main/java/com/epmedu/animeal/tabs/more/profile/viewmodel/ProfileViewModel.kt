@@ -20,11 +20,11 @@ import com.epmedu.animeal.tabs.more.profile.ProfileScreenEvent.Edit
 import com.epmedu.animeal.tabs.more.profile.ProfileScreenEvent.InputFormEvent
 import com.epmedu.animeal.tabs.more.profile.ProfileScreenEvent.Save
 import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @HiltViewModel
 internal class ProfileViewModel @Inject constructor(
