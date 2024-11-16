@@ -1,16 +1,21 @@
 package com.epmedu.animeal.home.presentation.ui
 
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.epmedu.animeal.extensions.formatMetersToKilometers
@@ -18,8 +23,10 @@ import com.epmedu.animeal.extensions.formatNumberToHourMin
 import com.epmedu.animeal.feeding.domain.model.FeedingConfirmationState.Showing
 import com.epmedu.animeal.feeding.presentation.model.FeedingPointModel
 import com.epmedu.animeal.feeding.presentation.model.MapLocation
+import com.epmedu.animeal.foundation.bottomsheet.AnimealBottomSheetState
 import com.epmedu.animeal.foundation.tabs.AnimealSwitch
 import com.epmedu.animeal.foundation.tabs.model.AnimalType
+import com.epmedu.animeal.foundation.theme.bottomBarHeight
 import com.epmedu.animeal.foundation.theme.bottomBarPadding
 import com.epmedu.animeal.geolocation.gpssetting.GpsSettingState
 import com.epmedu.animeal.home.presentation.ui.map.GesturesListeners
@@ -44,10 +51,14 @@ import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
 import com.mapbox.maps.MapView
 import com.mapbox.maps.StyleLoadedCallback
+import com.mapbox.maps.plugin.attribution.attribution
+import com.mapbox.maps.plugin.logo.logo
+import kotlin.math.max
 
 @Composable
 internal fun HomeMapbox(
     state: HomeState,
+    bottomSheetState: AnimealBottomSheetState,
     onFeedingPointSelect: (point: FeedingPointModel) -> Unit,
     onGeolocationClick: (MapView) -> Unit,
     onFeedingsClick: () -> Unit,
@@ -60,8 +71,13 @@ internal fun HomeMapbox(
 ) {
     val context = LocalContext.current
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val mapboxMapView = rememberMapboxMapView(homeState = state)
+
+        mapboxMapView.LogoAndAttributionMarginsEffect(
+            maxHeight = maxHeight,
+            bottomSheetState = bottomSheetState
+        )
 
         /** Show user location after successful feeding operation */
         if (state.feedState.feedingConfirmationState is Showing) {
@@ -114,6 +130,35 @@ internal fun HomeMapbox(
             onGeoFABClick = { onGeolocationClick(mapboxMapView) },
             onFeedingsFABClick = onFeedingsClick
         )
+    }
+}
+
+@Composable
+private fun MapView.LogoAndAttributionMarginsEffect(
+    maxHeight: Dp,
+    bottomSheetState: AnimealBottomSheetState
+) {
+    with(LocalDensity.current) {
+        val componentMargin = 4.dp.toPx()
+        val marginBottom by remember {
+            derivedStateOf {
+                val currentBottomSheetHeight = maxHeight.toPx() - bottomSheetState.offset.value
+
+                max(currentBottomSheetHeight, bottomBarHeight.toPx()) + componentMargin
+            }
+        }
+
+        LaunchedEffect(Unit) {
+            logo.marginLeft += componentMargin
+            attribution.marginLeft += componentMargin
+        }
+
+        DisposableEffect(marginBottom) {
+            logo.marginBottom = marginBottom
+            attribution.marginBottom = marginBottom
+
+            onDispose { }
+        }
     }
 }
 

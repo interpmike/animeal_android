@@ -195,6 +195,7 @@ internal fun HomeScreenUI(
         ) { geolocationPermissionState ->
             HomeMapbox(
                 state = state,
+                bottomSheetState = bottomSheetState,
                 onFeedingPointSelect = { onFeedingPointEvent(FeedingPointEvent.Select(it)) },
                 onCameraChange = onCameraChange,
                 onMapClick = { hideBottomSheet() },
