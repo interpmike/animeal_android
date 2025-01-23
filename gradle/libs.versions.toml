@@ -9,7 +9,7 @@ accompanist = "0.34.0"
 activityCompose = "1.9.2"
 androidxComposeBom = "2024.09.03"
 appcompat = "1.7.0"
-amplify = "2.19.1"
+amplify = "2.24.0"
 androidxEspresso = "3.6.1"
 androidxJunit = "1.2.1"
 appsync = "3.4.1"
@@ -72,7 +72,7 @@ mapbox-turf-measurement = { module = "com.mapbox.mapboxsdk:mapbox-sdk-turf", ver
 
 amplify-aws-api = { module = "com.amplifyframework:aws-api", version.ref = "amplify" }
 amplify-aws-auth-cognito = { module = "com.amplifyframework:aws-auth-cognito", version.ref = "amplify" }
-amplify-core = { module = "com.amplifyframework:core", version.ref = "amplify" }
+amplify-core = { module = "com.amplifyframework:core-kotlin", version.ref = "amplify" }
 amplify-storage = { module = "com.amplifyframework:aws-storage-s3", version.ref = "amplify" }
 
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
