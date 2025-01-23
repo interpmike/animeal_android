@@ -6,26 +6,20 @@ import com.amplifyframework.auth.cognito.AWSCognitoAuthSession
 import com.amplifyframework.auth.cognito.options.AWSCognitoAuthSignInOptions
 import com.amplifyframework.auth.cognito.options.AuthFlowType
 import com.amplifyframework.auth.exceptions.SessionExpiredException
+import com.amplifyframework.auth.options.AuthFetchSessionOptions
 import com.amplifyframework.auth.options.AuthSignUpOptions
 import com.amplifyframework.auth.result.AuthSessionResult
-import com.amplifyframework.core.Amplify
+import com.amplifyframework.kotlin.core.Amplify
 import com.epmedu.animeal.auth.constants.UserAttributesKey
 import com.epmedu.animeal.auth.error.WrongCodeError
 import com.epmedu.animeal.common.data.wrapper.ApiResult
-import com.epmedu.animeal.extensions.suspendCancellableCoroutine
 import com.epmedu.animeal.token.errorhandler.TokenExpirationHandler
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
-import kotlin.coroutines.coroutineContext
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 internal class AuthAPIImpl(
     private val userAttributesAPI: UserAttributesAPI,
     private val errorHandler: TokenExpirationHandler
 ) : AuthAPI,
     TokenExpirationHandler by errorHandler {
-
     override var authenticationType: AuthenticationType = AuthenticationType.Mobile
 
     private val AWSCognitoAuthSession.isExpired
@@ -44,58 +38,33 @@ internal class AuthAPIImpl(
             userPoolTokensResult.type == AuthSessionResult.Type.SUCCESS &&
             userSubResult.type == AuthSessionResult.Type.SUCCESS
 
-    override suspend fun getCurrentUserId(): String = suspendCancellableCoroutine {
-        Amplify.Auth.getCurrentUser(
-            { user -> resume(user.username) },
-            { authException ->
-                if (isRefreshTokenHasExpiredException(authException)) {
-                    handleRefreshTokenExpiration()
-                } else {
-                    resumeWithException(authException)
-                }
-            }
-        )
-    }
+    override suspend fun getCurrentUserId() = Amplify.Auth.getCurrentUser().userId
 
     /** Keep in mind: verification of session expiration (session.isExpired) works only for Mobile authorization flow.
      * Wherever this method is used for Facebook flow, verify that next steps will be ready to handle
      * NotAuthorizedException due to possible refresh token expiration */
     override suspend fun isSignedIn(): Boolean {
-        val scope = CoroutineScope(coroutineContext)
-        return suspendCancellableCoroutine {
-            Amplify.Auth.fetchAuthSession(
-                { session ->
-                    when (session) {
-                        is AWSCognitoAuthSession -> {
-                            if (session.isExpired) {
-                                scope.launch {
-                                    signOut()
-                                    resume(false)
-                                }
-                            } else {
-                                resume(session.isSignedInWithoutErrors)
-                            }
-                        }
-
-                        else -> {
-                            resume(session.isSignedIn)
-                        }
-                    }
-                },
-                {
-                    if (isRefreshTokenHasExpiredException(it)) {
-                        handleRefreshTokenExpiration()
-                    } else {
-                        resume(false)
-                    }
+        val options = AuthFetchSessionOptions.builder()
+            .build()
+        return when (val session = Amplify.Auth.fetchAuthSession(options)) {
+            is AWSCognitoAuthSession -> {
+                if (session.isExpired) {
+                    signOut()
+                    false
+                } else {
+                    session.isSignedInWithoutErrors
                 }
-            )
+            }
+
+            else -> {
+                session.isSignedIn
+            }
         }
     }
 
     override suspend fun signUp(
         phone: String,
-        password: String
+        password: String,
     ): ApiResult<Unit> {
         val attrs = mapOf(
             AuthUserAttributeKey.phoneNumber() to phone,
@@ -104,88 +73,73 @@ internal class AuthAPIImpl(
         val options = AuthSignUpOptions.builder()
             .userAttributes(attrs.map { AuthUserAttribute(it.key, it.value) })
             .build()
-        return suspendCancellableCoroutine {
-            Amplify.Auth.signUp(
+
+        return try {
+            val result = Amplify.Auth.signUp(
                 phone,
                 password,
                 options,
-                { resume(ApiResult.Success(Unit)) },
-                {
-                    if (isRefreshTokenHasExpiredException(it)) {
-                        handleRefreshTokenExpiration()
-                    } else {
-                        resume(ApiResult.Failure(it))
-                    }
-                }
             )
+
+            if (result.isSignUpComplete) {
+                ApiResult.Success(Unit)
+            } else {
+                ApiResult.Failure(Exception())
+            }
+        } catch (e: Exception) {
+            if (isRefreshTokenHasExpiredException(e)) {
+                handleRefreshTokenExpiration()
+            }
+            ApiResult.Failure(e)
         }
     }
 
-    override suspend fun signIn(
-        phoneNumber: String
-    ): ApiResult<Unit> {
+    override suspend fun signIn(phoneNumber: String): ApiResult<Unit> {
         val authSignInOptions = AWSCognitoAuthSignInOptions.builder()
             .authFlowType(AuthFlowType.CUSTOM_AUTH_WITHOUT_SRP)
             .build()
-        return suspendCancellableCoroutine {
+
+        return try {
             Amplify.Auth.signIn(
                 phoneNumber,
                 "",
                 authSignInOptions,
-                /* Actual return type of onSuccess function here is AuthSignInResult, but currently it's unused */
-                { resume(ApiResult.Success(Unit)) },
-                {
-                    if (isRefreshTokenHasExpiredException(it)) {
-                        handleRefreshTokenExpiration()
-                    } else {
-                        resume(ApiResult.Failure(it))
-                    }
-                }
             )
+
+            ApiResult.Success(Unit)
+        } catch (e: Exception) {
+            handleException(e)
+            return ApiResult.Failure(e)
         }
     }
 
-    override suspend fun confirmSignIn(
-        code: String
-    ): ApiResult<Unit> {
-        return suspendCancellableCoroutine {
-            Amplify.Auth.confirmSignIn(
-                code,
-                {
-                    resume(
-                        when {
-                            it.isSignedIn -> ApiResult.Success(Unit)
-                            else -> ApiResult.Failure(WrongCodeError())
-                        }
-                    )
-                },
-                {
-                    if (isRefreshTokenHasExpiredException(it)) {
-                        handleRefreshTokenExpiration()
-                    } else {
-                        resume(ApiResult.Failure(it))
-                    }
-                }
-            )
+    override suspend fun confirmSignIn(code: String): ApiResult<Unit> {
+        return try {
+            val confirmSignIn = Amplify.Auth.confirmSignIn(code)
+
+            if (confirmSignIn.isSignedIn) {
+                ApiResult.Success(Unit)
+            } else {
+                ApiResult.Failure(WrongCodeError())
+            }
+        } catch (e: Exception) {
+            handleException(e)
+            return ApiResult.Failure(e)
         }
     }
 
     override suspend fun confirmResendCode(
-        code: String
+        code: String,
     ): ApiResult<Unit> {
-        return suspendCancellableCoroutine {
+        return try {
             Amplify.Auth.confirmUserAttribute(
                 AuthUserAttributeKey.phoneNumber(),
                 code,
-                { resume(ApiResult.Success(Unit)) },
-                {
-                    if (isRefreshTokenHasExpiredException(it)) {
-                        handleRefreshTokenExpiration()
-                    } else {
-                        resume(ApiResult.Failure(it))
-                    }
-                },
             )
+            ApiResult.Success(Unit)
+        } catch (e: Exception) {
+            handleException(e)
+            ApiResult.Failure(e)
         }
     }
 
@@ -199,10 +153,17 @@ internal class AuthAPIImpl(
     }
 
     override suspend fun signOut(): ApiResult<Unit> {
-        return suspendCancellableCoroutine {
-            Amplify.Auth.signOut {
-                resume(ApiResult.Success(Unit))
-            }
+        return try {
+            Amplify.Auth.signOut()
+            ApiResult.Success(Unit)
+        } catch (e: Exception) {
+            ApiResult.Failure(e)
+        }
+    }
+
+    private fun handleException(e: Exception) {
+        if (isRefreshTokenHasExpiredException(e)) {
+            handleRefreshTokenExpiration()
         }
     }
 
