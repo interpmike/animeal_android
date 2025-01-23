@@ -1,6 +1,5 @@
 package com.epmedu.animeal.auth
 
-import android.util.Log
 import com.amplifyframework.auth.AuthUserAttribute
 import com.amplifyframework.auth.AuthUserAttributeKey
 import com.amplifyframework.auth.cognito.AWSCognitoAuthSession
@@ -155,7 +154,6 @@ internal class AuthAPIImpl(
 
     override suspend fun signOut(): ApiResult<Unit> {
         return try {
-            Log.d("asdf", "LogOut")
             Amplify.Auth.signOut()
             ApiResult.Success(Unit)
         } catch (e: Exception) {
